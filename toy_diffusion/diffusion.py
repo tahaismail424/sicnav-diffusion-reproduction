@@ -1,23 +1,23 @@
 import torch
 
 def noise(
-    timestep: int, 
-    alpha_bars: torch.tensor,
-    x_0: torch.tensor, 
-    epsilon: torch.tensor
-    ) -> torch.tensor:
+    timesteps: torch.Tensor,
+    alpha_bars: torch.Tensor,
+    x_0: torch.Tensor,
+    epsilon: torch.Tensor,
+    ) -> torch.Tensor:
     
-    alpha_bar_t =  alpha_bars[timestep]
-    x_t = torch.sqrt(alpha_bar_t) * x_0 + torch.sqrt(1 - alpha_bar_t) * epsilon
+    alpha_bar_t =  alpha_bars[timesteps]
+    x_t = torch.sqrt(alpha_bar_t)[:, None] * x_0 + torch.sqrt(1 - alpha_bar_t)[:, None] * epsilon
     return x_t
 
 def denoise(
     timestep: int,
-    betas: torch.tensor,
-    alpha_bars: torch.tensor,
-    x_t: torch.tensor,
-    epsilon_pred: torch.tensor
-    ) -> torch.tensor:
+    betas: torch.Tensor,
+    alpha_bars: torch.Tensor,
+    x_t: torch.Tensor,
+    epsilon_pred: torch.Tensor,
+    ) -> torch.Tensor:
     beta = betas[timestep]
     alpha_bar_t = alpha_bars[timestep]
     
@@ -29,4 +29,3 @@ def denoise(
     else:
         x_tm = mean
     return x_tm
-    

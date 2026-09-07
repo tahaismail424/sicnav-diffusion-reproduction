@@ -1,0 +1,15 @@
+name: sicnav-toy-diffusion
+
+channels:
+  - conda-forge
+
+dependencies:
+  - python=3.11
+  - pip
+  - ipykernel
+  - jupyterlab
+  - matplotlib
+  - numpy
+  - pip:
+      # The official macOS wheel supports the MPS backend on Apple Silicon.
+      - torch==2.8.0

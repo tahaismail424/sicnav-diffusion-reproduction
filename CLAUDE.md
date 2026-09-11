@@ -205,6 +205,10 @@ rewrite Trajectron++ from scratch at this stage.
   slower full benchmark, use `experiments/eth_ucy/run_mid_benchmark.py` on a
   CUDA host such as Grace with explicit `--data-dir`, `--output-dir`, and
   `--device cuda` arguments.
+- `trajectory_prediction/MID/environment.yml` is the pip-first reproducible
+  environment for the MID fork. On a CUDA host, verify `torch.cuda.is_available()`
+  after creation and replace only the PyTorch wheel with the CUDA index selected
+  for that host; keep the remaining pinned Python dependencies unchanged.
 - `experiments/eth_ucy/02_mid_benchmark.ipynb` is the canonical MID notebook:
   it smoke-tests a batch, runs one or five leave-one-scene-out folds, persists
   `mid_all_folds.csv`, and compares MID with constant velocity and the toy

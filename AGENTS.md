@@ -51,6 +51,8 @@ For complete scope, implementation order, and design rationale, see
   leave-one-scene-out evaluation.
 - Use `experiments/eth_ucy/run_mid_benchmark.py` for non-interactive CUDA
   benchmark runs; its paths and device are command-line arguments.
+- Use `trajectory_prediction/MID/environment.yml` for MID dependencies. CUDA
+  hosts may require a host-appropriate PyTorch wheel after environment creation.
 - Preserve split hygiene: train on `*_train.pkl`, select only with `*_val.pkl`,
   and run `*_test.pkl` once for the final result.
 - `models/transformer.py` is unused by the MID pipeline. The active social

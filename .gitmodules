@@ -1,0 +1,3 @@
+[submodule "trajectory_prediction/MID"]
+	path = trajectory_prediction/MID
+	url = git@github.com:Gutianpei/MID.git

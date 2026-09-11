@@ -1,5 +1,4 @@
 import math
-from typing import Optional
 
 import torch
 import torch.nn as nn
@@ -28,39 +27,49 @@ class SinusoidalEmbedding(nn.Module):
 
 class Denoiser(nn.Module):
     def __init__(self,
-                 embedding_dim: int = 32,
+                 obs_len: int = 50,
+                 pred_len: int = 10,
+                 coordinate_dim: int = 2,
+                 context_dim: int = 32,
+                 timestep_embedding_dim: int = 32,
                  max_period: float = 10_000.0,
-                 num_diffusion_steps: int = 100,
-                 beta_schedule: Optional[torch.Tensor] = None
                  ):
         super().__init__()
+        if obs_len < 1 or pred_len < 1 or coordinate_dim < 1:
+            raise ValueError("Trajectory dimensions must be positive.")
+
+        self.obs_len = obs_len
+        self.pred_len = pred_len
+        self.coordinate_dim = coordinate_dim
+        self.past_dim = obs_len * coordinate_dim
+        self.future_dim = pred_len * coordinate_dim
+
+        encoder_hidden_dim = max(64, 2 * self.past_dim)
+        # Keep the original toy model's capacity while allowing other horizons.
+        denoiser_hidden_dim = 150
         self.past_encoder = nn.Sequential(
-            nn.Linear(100, 200),
+            nn.Linear(self.past_dim, encoder_hidden_dim),
             nn.ReLU(),
-            nn.Linear(200, 100),
+            nn.Linear(encoder_hidden_dim, self.past_dim),
             nn.ReLU(),
-            nn.Linear(100, 64),
+            nn.Linear(self.past_dim, 64),
             nn.ReLU(),
-            nn.Linear(64, 32)
+            nn.Linear(64, context_dim)
         )
-        self.timestep_encoder = SinusoidalEmbedding(embedding_dim, max_period)
+        self.timestep_encoder = SinusoidalEmbedding(
+            timestep_embedding_dim, max_period
+        )
         self.ffn = nn.Sequential(
-            nn.Linear(84, 150),
+            nn.Linear(
+                context_dim + timestep_embedding_dim + self.future_dim,
+                denoiser_hidden_dim,
+            ),
             nn.ReLU(),
-            nn.Linear(150, 64),
+            nn.Linear(denoiser_hidden_dim, 64),
             nn.ReLU(),
-            nn.Linear(64, 20)
+            nn.Linear(64, self.future_dim)
         )
         
-        self.num_diffusion_steps = num_diffusion_steps
-        if beta_schedule is not None:
-            betas = beta_schedule[:num_diffusion_steps]
-        else:
-            betas = torch.linspace(1e-4, 0.02, num_diffusion_steps)
-        alpha_bars = torch.cumprod(1 - betas, dim=0)
-        self.register_buffer("betas", betas)
-        self.register_buffer("alpha_bars", alpha_bars)
-
     def forward(self, x_t, past_trajectory, timesteps):
         past_encoding = self.past_encoder(past_trajectory)
         timestep_embedding = self.timestep_encoder(timesteps)

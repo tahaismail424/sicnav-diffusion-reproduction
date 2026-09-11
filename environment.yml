@@ -10,6 +10,7 @@ dependencies:
   - jupyterlab
   - matplotlib
   - numpy
+  - pandas
   - pip:
       # The official macOS wheel supports the MPS backend on Apple Silicon.
       - torch==2.8.0

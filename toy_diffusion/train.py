@@ -7,12 +7,12 @@ from torch.optim import Adam
 
 try:
     from .data import TrajectoryDataset
-    from .diffusion import noise
+    from .diffusion import Diffuser
     from .models import Denoiser
 except ImportError:
     # Allow both `python -m toy_diffusion.train` and direct script execution.
     from data import TrajectoryDataset
-    from diffusion import noise
+    from diffusion import Diffuser
     from models import Denoiser
 
 
@@ -31,6 +31,7 @@ def train(epochs: int, seed: int, batch_size: int, num_workers: int):
         device = torch.device("mps")
 
     model = Denoiser().to(device)
+    diffuser = Diffuser().to(device)
     train_set = TrajectoryDataset(partition="train", seed=seed)
     val_set = TrajectoryDataset(partition="val", seed=seed)
     train_loader = DataLoader(
@@ -68,13 +69,13 @@ def train(epochs: int, seed: int, batch_size: int, num_workers: int):
             epsilon = torch.randn_like(future_flat)
             timesteps = torch.randint(
                 low=0,
-                high=model.num_diffusion_steps,
+                high=diffuser.num_diffusion_steps,
                 size=(batch_size,),
                 device=device,
             )
 
             adam.zero_grad()
-            x_t = noise(timesteps, model.alpha_bars, future_flat, epsilon)
+            x_t, _ = diffuser.add_noise(future_flat, timesteps, epsilon)
             epsilon_pred = model(x_t, past_flat, timesteps)
             loss = loss_fn(epsilon_pred, epsilon)
             loss.backward()
@@ -101,21 +102,18 @@ def train(epochs: int, seed: int, batch_size: int, num_workers: int):
                 epsilon = torch.randn_like(future_flat)
                 timesteps = torch.randint(
                     low=0,
-                    high=model.num_diffusion_steps,
+                    high=diffuser.num_diffusion_steps,
                     size=(batch_size,),
                     device=device,
                 )
 
-                x_t = noise(timesteps, model.alpha_bars, future_flat, epsilon)
+                x_t, _ = diffuser.add_noise(future_flat, timesteps, epsilon)
                 epsilon_pred = model(x_t, past_flat, timesteps)
                 loss = loss_fn(epsilon_pred, epsilon)
                 total_val_loss += loss.item()
 
                 # Reconstruct the known clean future from its corrupted version.
-                alpha_bar_t = model.alpha_bars[timesteps].unsqueeze(-1)
-                future_estimate = (
-                    x_t - torch.sqrt(1 - alpha_bar_t) * epsilon_pred
-                ) / torch.sqrt(alpha_bar_t)
+                future_estimate = diffuser.predict_x0(x_t, timesteps, epsilon_pred)
                 future_points = future_flat.view(batch_size, -1, 2)
                 estimated_points = future_estimate.view(batch_size, -1, 2)
                 point_errors = torch.linalg.vector_norm(
@@ -136,7 +134,7 @@ def train(epochs: int, seed: int, batch_size: int, num_workers: int):
             print("epoch denoising FDE:", avg_fde)
 
     model.eval()
-    return model, epoch_losses_train, epoch_losses_val, denoising_ades, denoising_fdes
+    return model, diffuser, epoch_losses_train, epoch_losses_val, denoising_ades, denoising_fdes
 
 
 if __name__ == "__main__":

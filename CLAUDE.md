@@ -1,6 +1,6 @@
 # SICNav-Diffusion Reproduction Context
 
-Last updated: 2026-09-02
+Last updated: 2026-09-08
 
 ## Project
 
@@ -90,13 +90,132 @@ Reason:
 - Forecasting and navigation are two different systems.
 - The user should not have to learn diffusion, benchmarking, planning, and simulation all at once.
 
-## Immediate Goal
+## Completed Foundations
 
-Immediate task for this repo:
+### Toy conditional DDPM
 
-- write a concrete first-pass implementation plan for a toy conditional trajectory DDPM in `toy_diffusion/`
+`toy_diffusion/` is complete as an educational baseline:
 
-Interpret "DPPM" in current discussion as "DDPM" unless the user explicitly means something else.
+- `data.py` generates cached, stochastic, multimodal 2D trajectories.
+- `diffusion.py` exposes `Diffuser`, a reusable `nn.Module` that owns beta,
+  alpha, and cumulative-alpha buffers plus batch-friendly forward noising,
+  x0 reconstruction, and ancestral DDPM reverse steps.
+- `models.py` contains a conditional MLP noise-prediction network. Its default remains the toy
+  50-position-history / 10-position-future task, but its observation and
+  prediction widths are configurable for ETH/UCY.
+- `train.py` trains epsilon prediction and records direct x0-reconstruction
+  ADE/FDE diagnostics.
+- `01_toy_diffusion_workflow.ipynb` provides data inspection, overfitting,
+  training, and multi-sample reverse-diffusion visualizations.
+
+The toy model trained successfully and produces sensible straight/left/right
+future modes. It is intentionally not a research benchmark model.
+
+### Diffusion ownership convention
+
+Keep the learned predictor and diffusion process separate:
+
+- `Diffuser` owns the schedule and implements `add_noise`, `predict_x0`, and
+  `denoise_step`.
+- A custom predictor such as `Denoiser` or future JMID implements only
+  `epsilon_theta(x_t, timestep, conditioning)`.
+- Training and sampling create both objects, move both to the selected device,
+  and save both state dictionaries in checkpoints.
+
+This makes the DDPM mechanics reusable as the trajectory architecture changes.
+
+Exception: the faithful reference implementation in `trajectory_prediction/MID`
+retains its original `VarianceSchedule` and `DiffusionTraj`; do not replace
+them with the toy `Diffuser` during the MPS port because that would complicate
+algorithmic fidelity comparisons.
+
+### ETH/UCY open-loop pipeline
+
+The downloaded Social GAN-format data is intentionally untracked at
+`experiments/eth_ucy/data/`.
+
+- Rows are `frame_id, pedestrian_id, x, y` in meters.
+- A repeated frame number is one timestamp containing positions for multiple
+  pedestrians; it is not duplicated trajectory data.
+- Frame labels advance by 10 source-video frames, yielding the benchmark's
+  2.5 Hz / 0.4 s sampling rate.
+- The supplied `eth`, `hotel`, `univ`, `zara1`, and `zara2` directories are
+  standard leave-one-scene-out folds, each with supplied train/val/test splits.
+- `dataset.py` creates valid single-pedestrian sliding windows with 8 observed
+  and 12 future coordinates, normalized around the final observed point.
+- `01_single_agent_ddpm_benchmark.ipynb` uses the shared Denoiser for a
+  single-agent DDPM baseline. It includes a constant-velocity reference,
+  validation-only model selection, 100-step ancestral sampling, and
+  best-of-20 ADE/FDE test evaluation.
+
+Use all 20-position windows with stride 1, as is conventional for this
+benchmark. Never tune hyperparameters after inspecting the corresponding test
+partition.
+
+### Environment
+
+Maintain one `environment.yml` at the repository root for the toy and ETH/UCY
+stages. The current Conda CLI has an unresolved duplicate-`libomp.dylib` error
+when importing PyTorch. Do not suppress it with `KMP_DUPLICATE_LIB_OK`; diagnose
+or rebuild the environment if it also affects the intended notebook kernel.
+
+## Current Goal: iMID Then JMID
+
+The next work is still open-loop prediction, not robot planning:
+
+1. Finish the simple single-agent DDPM benchmark across all five ETH/UCY folds.
+2. Reproduce iMID faithfully by integrating the Trajectron++ encoder used by the
+   original MID implementation.
+3. Extend the data contract and denoiser to JMID for joint scene samples.
+4. Compare the MLP DDPM, faithful iMID, and JMID in notebooks.
+5. Only then begin SICNav's ORCA-refined bilevel MPC and CrowdSimPlus work.
+
+`experiments/eth_ucy/IMPLEMENTATION_PLAN.md` is the detailed plan and acceptance
+criteria for this phase.
+
+### Terminology and fidelity
+
+- The current MLP baseline is a conditional DDPM, not MID.
+- iMID is SICNav's name for the original MID-style *individual* forecaster:
+  target-agent history plus neighboring-agent context, Trajectron++ encoder,
+  and Transformer diffusion decoder.
+- JMID produces one coupled future sample for every human in a scene; it is not
+  equivalent to independently sampling iMID once per pedestrian.
+- Do not implement a custom "iMID-compatible" social-DDPM detour unless the
+  user explicitly reintroduces it; the chosen next target is fidelity-oriented
+  iMID.
+
+### MID Reference Baseline
+
+The original MID repository is included as the `trajectory_prediction/MID`
+submodule. It is the chosen faithful iMID reference implementation; do not
+rewrite Trajectron++ from scratch at this stage.
+
+- Active path: `models/trajectron.py` and `models/encoders/mgcvae.py` provide
+  the Trajectron++ target/social context encoder; `models/diffusion.py`
+  provides MID's 100-step velocity DDPM and `TransformerConcatLinear` epsilon
+  decoder; `models/autoencoder.py` wraps them.
+- `models/transformer.py` is unused experimental code and is not part of the
+  MID trajectory pipeline.
+- `mid.py` has been modernized to resolve one global device (`mps` when
+  available, otherwise CUDA, otherwise CPU), remove active CUDA hard-coding,
+  select `best.pt` by validation ADE, and evaluate the held-out test pickle
+  only once after selection.
+- The MPS path has been run successfully for a local held-out fold. For the
+  slower full benchmark, use `experiments/eth_ucy/run_mid_benchmark.py` on a
+  CUDA host such as Grace with explicit `--data-dir`, `--output-dir`, and
+  `--device cuda` arguments.
+- `experiments/eth_ucy/02_mid_benchmark.ipynb` is the canonical MID notebook:
+  it smoke-tests a batch, runs one or five leave-one-scene-out folds, persists
+  `mid_all_folds.csv`, and compares MID with constant velocity and the toy
+  single-agent DDPM.
+
+For fidelity, preserve the original state contract: eight history samples of
+`[x, y, vx, vy, ax, ay]`, 12 future velocity samples, a 3 m PEDESTRIAN-to-
+PEDESTRIAN attention radius, dynamic social edges, and the original linear
+100-step schedule ending at beta `5e-2`. Improvements to the model itself
+should be explicit follow-up experiments, not accidental changes in the MPS
+port.
 
 ## Working Style
 
@@ -107,4 +226,5 @@ When helping on this repo:
 - prefer synthetic data first
 - make open-loop forecasting work before any planner integration
 - explicitly call out assumptions when moving from toy diffusion toward MID/JMID
-
+- preserve the distinction between an educational approximation and a faithful
+  paper reproduction

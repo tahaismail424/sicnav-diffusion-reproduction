@@ -28,9 +28,7 @@ BATCH_SIZE="${BATCH_SIZE:-256}"
 NUM_SAMPLES="${NUM_SAMPLES:-20}"
 
 # If Faster exposes Conda through a module, load it here before this fallback.
-if ! command -v conda >/dev/null 2>&1; then
-    source "${CONDA_SH:-${HOME}/miniforge3/etc/profile.d/conda.sh}"
-fi
+module load Miniconda3/23.10.0-1
 conda activate "${CONDA_ENV}"
 
 export PYTHONUNBUFFERED=1

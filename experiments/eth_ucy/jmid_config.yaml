@@ -25,6 +25,7 @@ early_stopping: true
 batch_size: 64
 eval_batch_size: 1
 eval_every: 5
+preprocess_workers: 0
 
 num_samples: 20
 eval_at: 1

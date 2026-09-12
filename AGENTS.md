@@ -57,3 +57,13 @@ For complete scope, implementation order, and design rationale, see
   and run `*_test.pkl` once for the final result.
 - `models/transformer.py` is unused by the MID pipeline. The active social
   encoder is `models/trajectron.py` plus `models/encoders/mgcvae.py`.
+
+## JMID Baseline
+
+- Use the official fork at `trajectory_prediction/safe-interactive-crowdnav`.
+  Its `sicnav_diffusion/JMID/MID` implementation is the faithful JMID source.
+- Run `experiments/eth_ucy/03_jmid_benchmark.ipynb` interactively or
+  `run_jmid_benchmark.py` / `.sbatch` for durable runs. It must select on val
+  and test only once after selecting the best epoch.
+- JMID predicts pedestrians jointly. A simulator robot may be observed context,
+  but it is not an ETH/UCY JMID forecast target.

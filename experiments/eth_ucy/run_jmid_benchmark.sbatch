@@ -1,43 +1,35 @@
 #!/usr/bin/env bash
-# Submit from the repository root with: sbatch experiments/eth_ucy/run_mid_benchmark.sbatch
-#
-# Discover Faster-specific names on its login node before adding either line:
-#   sinfo -o "%P %G %c %m %l"
-#   sacctmgr show assoc user="$USER" format=Account,Partition
-#SBATCH --job-name=mid-eth-ucy
+# Submit from the repository root with:
+#   sbatch experiments/eth_ucy/run_jmid_benchmark.sbatch
+# Use SCENE=<name> for one fold, or uncomment the array directive below.
+#SBATCH --job-name=jmid-eth-ucy
 #SBATCH --gpus=1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
-#SBATCH --time=08:00:00
+#SBATCH --time=12:00:00
 #SBATCH --output=slurm-%x-%j.out
 #SBATCH --error=slurm-%x-%j.err
 ##SBATCH --partition=REPLACE_WITH_FASTER_GPU_PARTITION
 ##SBATCH --account=REPLACE_WITH_YOUR_ACCOUNT
-# Uncomment to train one held-out scene per GPU job. Each task writes separate results.
 ##SBATCH --array=0-4
 
 set -euo pipefail
 
-# Slurm executes a spool copy of this file, so BASH_SOURCE points into
-# /var/spool rather than the repository. SLURM_SUBMIT_DIR is the directory
-# from which `sbatch` was invoked; set PROJECT_ROOT explicitly if needed.
 PROJECT_ROOT="${PROJECT_ROOT:-${SLURM_SUBMIT_DIR:-$(pwd)}}"
-if [[ ! -d "${PROJECT_ROOT}/trajectory_prediction/MID" ]]; then
-    echo "PROJECT_ROOT does not look like this repository: ${PROJECT_ROOT}" >&2
-    echo "Submit from the repository root or set PROJECT_ROOT=/path/to/sicnav-diffusion-reproduction." >&2
+if [[ ! -d "${PROJECT_ROOT}/trajectory_prediction/safe-interactive-crowdnav/sicnav_diffusion/JMID/MID" ]]; then
+    echo "PROJECT_ROOT does not contain the SICNav JMID submodule: ${PROJECT_ROOT}" >&2
+    echo "Submit from the repository root or set PROJECT_ROOT explicitly." >&2
     exit 1
 fi
 PROJECT_ROOT="$(cd "${PROJECT_ROOT}" && pwd)"
 DATA_DIR="${DATA_DIR:-${PROJECT_ROOT}/experiments/eth_ucy/data}"
-OUTPUT_DIR="${OUTPUT_DIR:-${PROJECT_ROOT}/experiments/eth_ucy/outputs/mid_faster}"
-CONDA_ENV="${CONDA_ENV:-sicnav_mid_env}"
-EPOCHS="${EPOCHS:-90}"
-BATCH_SIZE="${BATCH_SIZE:-256}"
+OUTPUT_DIR="${OUTPUT_DIR:-${PROJECT_ROOT}/experiments/eth_ucy/outputs/jmid_faster}"
+CONDA_ENV="${CONDA_ENV:-sicnav_jmid_env}"
+EPOCHS="${EPOCHS:-1000}"
+BATCH_SIZE="${BATCH_SIZE:-64}"
 NUM_SAMPLES="${NUM_SAMPLES:-20}"
 DEVICE="${DEVICE:-cuda}"
 
-# Faster's module exposes the `conda` executable but does not guarantee a
-# cluster-specific CONDA_DIR variable. Ask Conda for its own installation root.
 module load Miniconda3/23.10.0-1
 if ! command -v conda >/dev/null 2>&1; then
     echo "Conda was not found after loading Miniconda3/23.10.0-1." >&2
@@ -51,10 +43,8 @@ export PYTHONUNBUFFERED=1
 export MPLCONFIGDIR="${SLURM_TMPDIR:-/tmp}/matplotlib-${SLURM_JOB_ID:-local}"
 LOG_DIR="${OUTPUT_DIR}/slurm_logs"
 JOB_SUFFIX="${SLURM_JOB_ID:-local}${SLURM_ARRAY_TASK_ID:+_task${SLURM_ARRAY_TASK_ID}}"
-RUN_LOG="${LOG_DIR}/mid-${JOB_SUFFIX}.log"
+RUN_LOG="${LOG_DIR}/jmid-${JOB_SUFFIX}.log"
 mkdir -p "${MPLCONFIGDIR}" "${LOG_DIR}"
-
-# Stream all shell/Python output to Slurm and to a durable per-job log in real time.
 exec > >(tee -a "${RUN_LOG}") 2>&1
 
 echo "Host: $(hostname)"
@@ -69,7 +59,6 @@ if [[ "${DEVICE}" == cuda* ]]; then
     else
         echo "WARNING: nvidia-smi is unavailable; checking PyTorch CUDA directly."
     fi
-
     if python -c "import torch, sys; sys.exit(0 if torch.cuda.is_available() else 1)"; then
         python -c "import torch; print('PyTorch:', torch.__version__, 'CUDA:', torch.cuda.get_device_name(0))"
     else
@@ -90,12 +79,12 @@ else
 fi
 
 cd "${PROJECT_ROOT}"
-srun --unbuffered python experiments/eth_ucy/run_mid_benchmark.py \
+srun --unbuffered python experiments/eth_ucy/run_jmid_benchmark.py \
     --device "${DEVICE}" \
     --scenes "${TARGET_SCENES[@]}" \
     --data-dir "${DATA_DIR}" \
     --output-dir "${OUTPUT_DIR}" \
-    --run-name mid_faster \
+    --run-name jmid_faster \
     --epochs "${EPOCHS}" \
     --batch-size "${BATCH_SIZE}" \
     --num-samples "${NUM_SAMPLES}"

@@ -1,3 +1,6 @@
 [submodule "trajectory_prediction/MID"]
 	path = trajectory_prediction/MID
 	url = git@github.com:Gutianpei/MID.git
+[submodule "trajectory_prediction/safe-interactive-crowdnav"]
+	path = trajectory_prediction/safe-interactive-crowdnav
+	url = git@github.com:tahaismail424/safe-interactive-crowdnav.git

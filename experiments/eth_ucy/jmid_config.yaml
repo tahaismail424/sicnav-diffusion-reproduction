@@ -1,0 +1,56 @@
+# Faithful JMID configuration for ETH/UCY leave-one-scene-out evaluation.
+seed: 0
+method: mid_jp
+eval_mode: false
+time: false
+fast_train: false
+maximum_history_length: 7
+prediction_horizon: 12
+
+data_dir: experiments/eth_ucy/data
+dataset: eth
+inference_dataset: eth
+selection_split: val
+test_split: test
+regenerate_indexes: true
+
+diffnet: JointPredictionTransformerConcatLinear
+encoder_dim: 256
+tf_layer: 3
+load_chkpt: None
+
+lr: 0.0001
+epochs: 1000
+early_stopping: true
+batch_size: 64
+eval_batch_size: 1
+eval_every: 5
+
+num_samples: 20
+eval_at: 1
+eval_timesteps: 1
+sampling: ddim
+num_steps: 2
+is_eval_hst: false
+save_trajectories: false
+with_constraints: false
+constraint_type: opt_softplus
+visualize: false
+
+offline_scene_graph: yes
+dynamic_edges: yes
+edge_state_combine_method: sum
+edge_influence_combine_method: attention
+edge_addition_filter: [0.25, 0.5, 0.75, 1.0]
+edge_removal_filter: [1.0, 0.0]
+override_attention_radius: []
+incl_robot_node: false
+map_encoding: false
+augment: true
+node_freq_mult_train: false
+node_freq_mult_eval: false
+scene_freq_mult_train: false
+scene_freq_mult_eval: false
+scene_freq_mult_viz: false
+no_edge_encoding: false
+device: auto

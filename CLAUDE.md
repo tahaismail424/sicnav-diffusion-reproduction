@@ -197,6 +197,23 @@ rewrite Trajectron++ from scratch at this stage.
   decoder; `models/autoencoder.py` wraps them.
 - `models/transformer.py` is unused experimental code and is not part of the
   MID trajectory pipeline.
+
+### JMID Reference and Benchmark
+
+- `trajectory_prediction/safe-interactive-crowdnav` is the user's fork of the
+  official SICNav repository. Its `sicnav_diffusion/JMID/MID` subtree is the
+  authoritative JMID implementation; do not recreate Trajectron++ or its joint
+  decoder in this repository.
+- The portable JMID path resolves `auto` as MPS, then CUDA, then CPU. It keeps
+  the official joint padding/masking logic and changes only device portability,
+  current-Python compatibility, configurable output paths, and split hygiene.
+- Use `experiments/eth_ucy/03_jmid_benchmark.ipynb` for exploration and
+  `run_jmid_benchmark.py` / `run_jmid_benchmark.sbatch` for durable local/HPC
+  runs. Train on `*_train.pkl`, select only on `*_val.pkl`, then evaluate the
+  selected epoch once on `*_test.pkl`.
+- JMID reports per-agent best-of-20 ADE/FDE and scene-level best-of-20
+  SADE/SFDE. Compare ADE/FDE with iMID and the toy DDPM; SADE/SFDE assess the
+  coherence of a whole joint sample.
 - `mid.py` has been modernized to resolve one global device (`mps` when
   available, otherwise CUDA, otherwise CPU), remove active CUDA hard-coding,
   select `best.pt` by validation ADE, and evaluate the held-out test pickle

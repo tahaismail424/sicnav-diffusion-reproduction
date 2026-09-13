@@ -1,0 +1,26 @@
+name: sicnav_crowdsim_env
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - ipykernel
+  - jupyterlab
+  - matplotlib
+  - numpy
+  - pandas
+  - pytorch
+  - scipy
+  - pip
+  - pip:
+      - casadi>=3.7,<3.8
+      - dill>=0.4
+      - distinctipy>=1.3
+      - easydict>=1.13
+      - einops>=0.8
+      - gymnasium>=1.0
+      - ncls>=0.0.68
+      - pyyaml>=6.0
+      - tensorboardX>=2.6
+
+# Install the locally maintained RVO2 binding after environment creation:
+# python -m pip install -e trajectory_prediction/RVO2

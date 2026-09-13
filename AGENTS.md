@@ -18,10 +18,10 @@ Do not conflate prediction quality with navigation quality.
 
 ## Current Focus
 
-The toy DDPM and ETH/UCY single-agent baseline now exist. The next stage is
-open-loop forecasting: first benchmark that baseline, then implement iMID with
-fidelity and extend it to JMID in `experiments/eth_ucy/`. Do not introduce ROS,
-CrowdSimPlus, or SICNav planning until the JMID open-loop work is complete.
+The toy DDPM and faithful ETH/UCY MID/JMID paths exist. Closed-loop work now
+progresses through linear/ORCAPlus, DWA, MPC-CVMM, SICNav-CVG, and finally
+SICNav-JMID. Use the shared runner and paired scenario cases rather than adding
+one-off policy setup to notebooks.
 
 ## Naming Guardrail
 
@@ -67,3 +67,39 @@ For complete scope, implementation order, and design rationale, see
   and test only once after selecting the best epoch.
 - JMID predicts pedestrians jointly. A simulator robot may be observed context,
   but it is not an ETH/UCY JMID forecast target.
+
+## Crowd Navigation
+
+- `experiments/crowd_navigation/01_crowdsim_baseline.ipynb` is the first
+  closed-loop simulator exercise. It uses a linear robot and SFM humans, with
+  no JMID, CasADi, Acados, or MPC.
+- `experiments/crowd_navigation/baseline.py` owns reusable episode execution,
+  trajectory plotting, and metrics. Reuse the same cases and metrics when
+  adding ORCA and SICNav policies.
+- `experiments/crowd_navigation/navigation.py` owns policy construction,
+  dependency checks, config overrides, checkpoint inspection, batch runs, and
+  result loading for all policies.
+- Use notebooks `02_dwa.ipynb`, `03_mpc_cvmm.ipynb`, `04_sicnav_cvg.ipynb`,
+  `05_sicnav_jmid.ipynb`, and `06_policy_comparison.ipynb` in that order.
+- Use `07_stress_benchmark.ipynb` for resumable repeated-case scenario and
+  density sweeps. It checkpoints each episode; preserve its paired case IDs
+  and out-of-distribution label for non-three-human JMID runs.
+- CasADi is enough for MPC-CVMM. SICNav-CVG/JMID also need compiled acados and
+  its matching editable `acados_template`; see `IMPLEMENTATION_NOTES.md`.
+- The verified local stack uses acados `71800fb7a`, `acados_template==0.5.1`,
+  and portable CasADi SQP/qpOASES warm starts instead of HSL-dependent blockSQP.
+- CVG and JMID both pass complete three-human bottleneck smoke tests. The first
+  JMID solver compilation takes about five minutes and may print recoverable
+  acados QP/max-iteration diagnostics.
+- The released JMID checkpoint is trusted full-module pickle data. Preserve the
+  robust historical-module path setup and explicit `weights_only=False` load.
+- CrowdSimPlus accepts modern Gymnasium with legacy Gym as a fallback. Optional
+  ORCA and SB3 policies are lazy-loaded so their dependencies are required only
+  when selected.
+- The maintained RVO2 C++ fork is the `trajectory_prediction/RVO2` submodule.
+  Install its modern pybind11 extension with `python -m pip install -e
+  trajectory_prediction/RVO2`; do not depend on the stale external
+  Python-RVO2 package.
+- The baseline defaults to `orca_plus` humans. SFM remains a dependency-light
+  alternative, and selecting ORCA must fail clearly if the native extension is
+  unavailable.

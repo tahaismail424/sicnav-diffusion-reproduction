@@ -39,6 +39,17 @@ CONDA_BASE="$(conda info --base)"
 source "${CONDA_BASE}/etc/profile.d/conda.sh"
 conda activate "${CONDA_ENV}"
 
+# Fail before requesting a device if activation selected an incomplete environment.
+echo "Conda environment: ${CONDA_DEFAULT_ENV:-unknown}"
+echo "Python executable: $(command -v python)"
+python -c "import numpy, torch; print('NumPy:', numpy.__version__); print('PyTorch:', torch.__version__)" || {
+    echo "The active environment is missing JMID dependencies." >&2
+    echo "Create it on Faster with:" >&2
+    echo "  conda env create -n ${CONDA_ENV} -f trajectory_prediction/safe-interactive-crowdnav/sicnav_diffusion/JMID/MID/environment.yml" >&2
+    echo "Or update it with: conda env update -n ${CONDA_ENV} -f trajectory_prediction/safe-interactive-crowdnav/sicnav_diffusion/JMID/MID/environment.yml --prune" >&2
+    exit 1
+}
+
 export PYTHONUNBUFFERED=1
 export MPLCONFIGDIR="${SLURM_TMPDIR:-/tmp}/matplotlib-${SLURM_JOB_ID:-local}"
 LOG_DIR="${OUTPUT_DIR}/slurm_logs"

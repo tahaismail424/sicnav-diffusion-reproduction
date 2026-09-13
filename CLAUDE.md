@@ -1,6 +1,6 @@
 # SICNav-Diffusion Reproduction Context
 
-Last updated: 2026-09-08
+Last updated: 2026-09-12
 
 ## Project
 
@@ -159,16 +159,18 @@ stages. The current Conda CLI has an unresolved duplicate-`libomp.dylib` error
 when importing PyTorch. Do not suppress it with `KMP_DUPLICATE_LIB_OK`; diagnose
 or rebuild the environment if it also affects the intended notebook kernel.
 
-## Current Goal: iMID Then JMID
+## Current Goal: Complete the Closed-Loop Policy Ladder
 
-The next work is still open-loop prediction, not robot planning:
+The faithful JMID open-loop benchmark is running. The closed-loop reproduction
+now has a staged policy ladder:
 
-1. Finish the simple single-agent DDPM benchmark across all five ETH/UCY folds.
-2. Reproduce iMID faithfully by integrating the Trajectron++ encoder used by the
-   original MID implementation.
-3. Extend the data contract and denoiser to JMID for joint scene samples.
-4. Compare the MLP DDPM, faithful iMID, and JMID in notebooks.
-5. Only then begin SICNav's ORCA-refined bilevel MPC and CrowdSimPlus work.
+1. Finish and record the full JMID ETH/UCY benchmark.
+2. Compare linear and ORCAPlus robot baselines in CrowdSimPlus.
+3. Run DWA to introduce feasible unicycle local control.
+4. Run MPC-CVMM to introduce horizon optimization without interaction.
+5. Run SICNav-CVG to introduce bilevel ORCA response without diffusion.
+6. Load the released simulation JMID checkpoint and run SICNav-JMID.
+7. Compare every policy on paired cases across built-in scenarios.
 
 `experiments/eth_ucy/IMPLEMENTATION_PLAN.md` is the detailed plan and acceptance
 criteria for this phase.
@@ -237,6 +239,73 @@ PEDESTRIAN attention radius, dynamic social edges, and the original linear
 100-step schedule ending at beta `5e-2`. Improvements to the model itself
 should be explicit follow-up experiments, not accidental changes in the MPS
 port.
+
+### CrowdSimPlus Baseline
+
+`experiments/crowd_navigation/01_crowdsim_baseline.ipynb` is the initial
+closed-loop exercise. It directly imports `baseline.py`, runs deterministic
+CrowdSimPlus test cases, visualizes executed robot/human trajectories, and
+records success, timeout, collision, clearance, navigation-time, path-efficiency,
+and policy-runtime metrics.
+
+The first baseline intentionally uses a goal-seeking linear robot and ORCAPlus
+humans. It excludes JMID, CasADi, Acados, and MPC so the Gym-style `reset ->
+robot.act -> env.step` contract can be understood and debugged alone. SFM
+humans remain available as a dependency-light comparison. CrowdSimPlus now
+imports Gymnasium when available and falls back to legacy Gym; ORCA/RVO2 and
+SB3 policies are lazy-loaded optional dependencies. Use
+`experiments/crowd_navigation/environment.yml` for this simulator-first stage.
+
+The maintained RVO2 C++ fork lives at `trajectory_prediction/RVO2`. It now
+contains a pybind11 binding compatible with the legacy
+`rvo2.PyRVOSimulator` API and a scikit-build-core `pyproject.toml`, so it can be
+compiled and installed into an active environment with `python -m pip install
+-e trajectory_prediction/RVO2`. `PYTHON_BINDINGS.md` documents the build layers,
+wheel portability, ownership/GIL considerations, and a general C++ binding
+workflow. Do not install the stale external Python-RVO2 project for this repo.
+
+Generated baseline CSVs live under `experiments/crowd_navigation/outputs/` and
+are intentionally untracked. Keep test-case IDs fixed for paired comparisons
+when ORCA, CVMM-MPC, and SICNav-Diffusion are added.
+
+### Crowd-Navigation Policy Suite
+
+`experiments/crowd_navigation/navigation.py` is the shared runner for `linear`,
+`orca_plus`, `dwa`, `mpc_cvmm`, `sicnav_cvg`, and `sicnav_jmid`. It owns
+in-memory config overrides, optional dependency checks, device resolution,
+paired deterministic runs, checkpoint inspection, and tidy CSV output. Keep
+policy construction here rather than duplicating it in notebooks.
+
+The corresponding notebooks are numbered `02_dwa.ipynb` through
+`06_policy_comparison.ipynb`. Expensive results are persisted under
+`outputs/policy_benchmark`; the comparison notebook does not rerun missing
+experiments unless `RUN_MISSING=True` is explicitly selected.
+
+`07_stress_benchmark.ipynb` is the higher-power follow-up. It runs all built-in
+scenarios at three humans and a density sweep in `hallway_static_with_back`,
+checkpoints every episode under `outputs/stress_benchmark`, resumes completed
+case IDs, and plots Wilson uncertainty intervals. Non-three-human JMID results
+are explicitly out-of-distribution stress tests.
+
+- DWA and MPC-CVMM have passed end-to-end local smoke tests.
+- MPC-CVMM requires CasADi/IPOPT; HSL/MA57 is optional and the local test used
+  IPOPT's default fallback linear solver.
+- SICNav-CVG and SICNav-JMID pass end-to-end local smoke tests with acados
+  source `71800fb7a`, `acados_template==0.5.1`, and PyTorch 2.14. The first JMID
+  generated-solver build takes about five minutes; later runs use the cache.
+- The released JMID simulation checkpoint loads and performs inference on CPU.
+  Its trusted full-module pickle needs the historical `models` package alias
+  and explicit `weights_only=False`; `mid.py` handles both without relying on
+  the launch directory.
+- Current CasADi `blocksqp` requires proprietary HSL/MA27. The ORCA warm-start
+  NLPs use portable `sqpmethod` plus qpOASES; acados remains the main optimizer.
+- acados can report recoverable QP/max-iteration statuses during SICNav. Keep
+  solver diagnostics visible and evaluate aggregate behavior, not one status.
+- The strict pybind11 RVO2 API exposed a legacy float-to-integer conversion;
+  the planner ORCA wrapper now reads `max_neighbors` with `getint`.
+
+See `experiments/crowd_navigation/IMPLEMENTATION_NOTES.md` for setup details,
+method-to-config mappings, portability rationale, and verification boundaries.
 
 ## Working Style
 
